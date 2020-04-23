@@ -81,18 +81,15 @@ public class FastTerrain : MonoBehaviour
         splatID.filterMode = FilterMode.Point;
 
         var splatIDColors = splatID.GetPixels();
-        // 改用图片文件时可设置压缩为R8 代码生成有格式限制 空间有点浪费
-        splatWeight = new Texture2D(wid, hei, TextureFormat.RGB24, false, true);
-        splatWeight.filterMode = FilterMode.Bilinear;
-        var splatWeightColors = splatWeight.GetPixels();
-
+  
+ 
         for (int i = 0; i < hei; i++)
         {
             for (int j = 0; j < wid; j++)
             {
                 List<SplatData> splatDatas = new List<SplatData>();
                 int index = i * wid + j;
-
+   // splatIDColors[index].r=1 / 16.0f;
                 //struct 是值引用 所以 Add到list后  可以复用（修改他属性不会影响已经加入的数据）
                 for (int k = 0; k < colors.Count; k++)
                 {
@@ -118,42 +115,18 @@ public class FastTerrain : MonoBehaviour
                     splatDatas.Add(sd);
                 }
 
-
+            
                 //按权重排序选出最重要几个
-                splatDatas.Sort((x, y) => -(x.weight + x.nearWeight / 2).CompareTo(y.weight + y.nearWeight / 2));
+               splatDatas.Sort((x, y) => -(x.weight+x.nearWeight).CompareTo(y.weight+y.nearWeight));
+       
+ 
+
+
+                //只存最重要3个图层 用一点压缩方案可以一张图存更多图层 ,这里最多支持16张
                 splatIDColors[index].r = splatDatas[0].id / 16f; //
-                int swapID = 0;
-                if (j > 0)
-                {
-                    if (Mathf.Abs(splatIDColors[index].r - splatIDColors[index - 1].g) < 0.5 / 16 ||
-                        Mathf.Abs(splatIDColors[index].g - splatIDColors[index - 1].r) < 0.5 / 16)
-                    {
-                        swapID = 1;
-                    }
-                }
-
-                if (i > 0)
-                {
-                    if (Mathf.Abs(splatIDColors[index].r - splatIDColors[index - wid].g) < 0.5 / 16 ||
-                        Mathf.Abs(splatIDColors[index].g - splatIDColors[index - wid].r) < 0.5 / 16)
-                    {
-                        swapID = 1;
-                    }
-                }
-
-                  
-
-
-                //只存最重要2个图层 用一点压缩方案可以一张图存更多图层 ,这里最多支持16张
-                splatIDColors[index].r = splatDatas[swapID].id / 16f; //
-                splatIDColors[index].g = splatDatas[1 - swapID].id / 16f;
-                splatIDColors[index].b = 0;
-
-                splatWeightColors[index].r =
-                    splatDatas[swapID].weight +
-                    (1 - splatDatas[0].weight - splatDatas[1].weight) / 2; //2张以后丢弃的权重平均加到这2张
-
-                splatWeightColors[index].g = splatWeightColors[index].b = 0;
+                 splatIDColors[index].g = splatDatas[1].id / 16f;
+                 splatIDColors[index].b =  splatDatas[2].id / 16f;
+  
             }
         }
 
@@ -161,8 +134,14 @@ public class FastTerrain : MonoBehaviour
         splatID.SetPixels(splatIDColors);
         splatID.Apply();
 
+        // 改用图片文件时可设置压缩为R8 代码生成有格式限制 空间有点浪费
+        splatWeight = new Texture2D(wid*2, hei*2,normalTerrainData.alphamapTextures[0].format, false, true);
+        splatWeight.filterMode = FilterMode.Bilinear;
+        for (int i = 0; i < normalTerrainData.alphamapTextures.Length; i++)
+        {
+            splatWeight.SetPixels((i%2)*wid,(i/2)*hei,wid,hei,normalTerrainData.alphamapTextures[i].GetPixels());
+        }
 
-        splatWeight.SetPixels(splatWeightColors);
         splatWeight.Apply();
     }
 
@@ -170,7 +149,7 @@ public class FastTerrain : MonoBehaviour
     private float getNearWeight(Color[] colors, int index, int wid, int rgba)
     {
         float value = 0;
-        for (int i = 1; i <= 3; i++)
+        for (int i = 1; i <= 2; i++)
         {
             value += colors[(index + colors.Length - i) % colors.Length][rgba];
             value += colors[(index + colors.Length + i) % colors.Length][rgba];
@@ -182,7 +161,7 @@ public class FastTerrain : MonoBehaviour
             value += colors[(index + colors.Length + (1 + wid) * i) % colors.Length][rgba];
         }
 
-        return value / (8 * 3);
+        return value / (8 * 2);
     }
 
 

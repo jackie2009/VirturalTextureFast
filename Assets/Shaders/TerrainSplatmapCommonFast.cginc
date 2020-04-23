@@ -39,7 +39,16 @@ void SplatmapVert(inout appdata_full v, out Input data)
     v.tangent.w = -1;
 #endif
 }
+ float getChannelValue(float4 clr,int index ){
  
+ //return index==0?clr.r:(index==1?clr.g:(index==2?clr.b:clr.a));
+ // 应该这样纯数学计算性能更高 （未测试验证）
+ const uint  step=256;
+  uint v=(uint)(clr.r*step)+(uint)(clr.g*step)*step+(uint)(clr.b*step)*step*step+(uint)(clr.a*step)*step*step*step;
+   v/= (uint)(pow(step,(float)index)+0.5);
+  return (v%step)/(float)step;
+  
+ }
 #ifdef TERRAIN_STANDARD_SHADER
 void SplatmapMix(Input IN, half4 defaultAlpha, out half4 splat_control, out half weight, out fixed4 mixedDiffuse, inout fixed3 mixedNormal)
 #else
@@ -60,36 +69,41 @@ float clipSize=1024;//单张图片大小
 int clipCount=4;//4x4 16张的图集
    
 float2 initScale = (IN.tc_Control*500/33);//terrain Size/ tile scale
-float2 initUVAlbedo = (0.25-2/clipSize) * frac(initScale) +  1/clipSize;
-float2 dx = clamp((1.0/clipCount-2/clipSize) * ddx(initScale), -1/clipSize, 1/clipSize);
-float2 dy = clamp((1.0/clipCount-2/clipSize) * ddy(initScale), -1/clipSize, 1/clipSize);
-   
  int id=(int)( splat_control.r*16+0.5);
+//if(id==2)initScale*=;
+float2 initUVAlbedo = (1.0/clipCount-2.0/clipSize) * frac(initScale) +  1.0/clipSize;
+float2 dx = clamp((1.0/clipCount-2.0/clipSize) * ddx(initScale), -1.0/clipSize, 1.0/clipSize);
+float2 dy = clamp((1.0/clipCount-2.0/clipSize) * ddy(initScale), -1.0/clipSize, 1.0/clipSize);
+   
+
  float2 uvR=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
  half3 colorR=tex2D(AlbedoAtlas, uvR,dx,dy);
  
- float weightR=  saturate( tex2D(SpaltWeightTex, IN.tc_Control).r);;
-
-
-   id=(int)( splat_control.g*16+0.5);
+ //根据混合总和为1 把丢弃的部分算给 混合最多的 这样画面影响最小 而且 少采样一次又提升性能
+  //float weightR= getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5),id%4);
+ 
+  //weightR=tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/4/2)*0.5).g;
+  id=(int)( splat_control.g*16+0.5);
   float2 uvG=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
    half3 colorG=tex2D(AlbedoAtlas, uvG,dx,dy);
+    float weightG=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5),id%4);
+    
+     id=(int)( splat_control.b*16+0.5);
+  float2 uvB=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
+  half3 colorB=tex2D(AlbedoAtlas, uvB,dx,dy);
+  float weightB=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5),id%4);
    
-  
- 
- 
-   mixedDiffuse.rgb= lerp(colorG,colorR,weightR); 
-  mixedDiffuse.a=1;
+   mixedDiffuse.rgb= colorR*(1-weightG-weightB)+colorG*weightG +colorB*weightB; 
+   mixedDiffuse.a=1;
   
     
     
-    //这里图集的法线贴图格式与 常规法线贴图 不同 所以效果有点不同 建议换成普通法线格式 比如 外部sd ps合并图集 
-        fixed4 nrm =lerp(tex2D(NormalAtlas, uvG),tex2D(NormalAtlas, uvR),weightR);
+    //法线少采样一张 一般也够表达效果 因为 3种半透明区域 法线已经减弱了
+        fixed4 nrm =0;
+       nrm+= lerp(tex2D(NormalAtlas, uvG),tex2D(NormalAtlas, uvR),(1-weightG-weightB));
  
-       mixedNormal = UnpackNormal( nrm);
- 
-   
-   //mixedDiffuse.rgb=idmain==1?half3(1,0,0):half3(0,1,0);
+      mixedNormal = UnpackNormal( nrm);
+  
 }
 
 #ifndef TERRAIN_SURFACE_OUTPUT
