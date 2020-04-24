@@ -22,6 +22,7 @@ uniform sampler2D SpaltIDTex;
 uniform sampler2D SpaltWeightTex;
 uniform  sampler2D AlbedoAtlas;
 uniform  sampler2D NormalAtlas;
+ 
 
 #ifdef _TERRAIN_NORMAL_MAP
     sampler2D _Normal0, _Normal1, _Normal2, _Normal3;
@@ -70,12 +71,19 @@ int clipCount=4;//4x4 16张的图集
    
 float2 initScale = (IN.tc_Control*500/33);//terrain Size/ tile scale
  int id=(int)( splat_control.r*16+0.5);
-//if(id==2)initScale*=;
- float clipRepeatWid = (1.0 / clipCount - 2.0 / clipSize);
-float2 initUVAlbedo = clipRepeatWid * frac(initScale) +  1.0/clipSize;
-float2 dx =  clamp(clipRepeatWid * ddx(initScale), -1.0 / clipSize, 1.0 / clipSize);
-float2 dy =  clamp(clipRepeatWid * ddy(initScale), -1.0 / clipSize, 1.0 / clipSize);
  
+ float space = 1.0 / clipSize;
+ float clipRepeatWid = (1.0 / clipCount - 2.0 *space);
+ float2 initUVAlbedo = clipRepeatWid * frac(initScale) + space;
+ float2 dx =  clamp(clipRepeatWid * ddx(initScale), -1.0/ clipCount, 1.0/ clipCount);
+ float2 dy =  clamp(clipRepeatWid * ddy(initScale), -1.0/ clipCount, 1.0/ clipCount);
+ int mipmap=(int)(0.5+ log2(max(sqrt(dot(dx, dx)), sqrt(dot(dy, dy)))*clipSize));
+ space =( pow(2.0, mipmap)+0.1) / clipSize;
+ clipRepeatWid = (1.0 / clipCount - 2.0 *space);
+ initUVAlbedo = clipRepeatWid * frac(initScale) + space;
+ 
+float2 dxSplat = clamp(0.5*ddx(IN.tc_Control), -1.0 / clipSize / 2, 1.0 / clipSize / 2);
+float2 dySplat = clamp(0.5* ddy(IN.tc_Control), -1.0 / clipSize / 2, 1.0 / clipSize / 2);
 
  float2 uvR=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
  half3 colorR=tex2D(AlbedoAtlas, uvR,dx,dy);
@@ -86,12 +94,12 @@ float2 dy =  clamp(clipRepeatWid * ddy(initScale), -1.0 / clipSize, 1.0 / clipSi
   id=(int)( splat_control.g*16+0.5);
   float2 uvG=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
    half3 colorG=tex2D(AlbedoAtlas, uvG,dx,dy);
-    float weightG=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5),id%4);
+    float weightG=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5, dxSplat, dySplat),id%4);
     
      id=(int)( splat_control.b*16+0.5);
   float2 uvB=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
   half3 colorB=tex2D(AlbedoAtlas, uvB,dx,dy);
-  float weightB=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5),id%4);
+  float weightB=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5, dxSplat, dySplat),id%4);
    
    mixedDiffuse.rgb= colorR*(1-weightG-weightB)+colorG*weightG +colorB*weightB; 
    mixedDiffuse.a=1;
