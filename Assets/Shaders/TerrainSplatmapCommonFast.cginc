@@ -71,18 +71,18 @@ int clipCount=4;//4x4 16张的图集
 float2 initScale = (IN.tc_Control*500/33);//terrain Size/ tile scale
  int id=(int)( splat_control.r*16+0.5);
 //if(id==2)initScale*=;
-float2 initUVAlbedo = (1.0/clipCount-2.0/clipSize) * frac(initScale) +  1.0/clipSize;
-float2 dx = clamp((1.0/clipCount-2.0/clipSize) * ddx(initScale), -1.0/clipSize, 1.0/clipSize);
-float2 dy = clamp((1.0/clipCount-2.0/clipSize) * ddy(initScale), -1.0/clipSize, 1.0/clipSize);
-   
+ float clipRepeatWid = (1.0 / clipCount - 2.0 / clipSize);
+float2 initUVAlbedo = clipRepeatWid * frac(initScale) +  1.0/clipSize;
+float2 dx =  clamp(clipRepeatWid * ddx(initScale), -1.0 / clipSize, 1.0 / clipSize);
+float2 dy =  clamp(clipRepeatWid * ddy(initScale), -1.0 / clipSize, 1.0 / clipSize);
+ 
 
  float2 uvR=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
  half3 colorR=tex2D(AlbedoAtlas, uvR,dx,dy);
  
  //根据混合总和为1 把丢弃的部分算给 混合最多的 这样画面影响最小 而且 少采样一次又提升性能
-  //float weightR= getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5),id%4);
- 
-  //weightR=tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/4/2)*0.5).g;
+   
+  
   id=(int)( splat_control.g*16+0.5);
   float2 uvG=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
    half3 colorG=tex2D(AlbedoAtlas, uvG,dx,dy);
@@ -100,7 +100,7 @@ float2 dy = clamp((1.0/clipCount-2.0/clipSize) * ddy(initScale), -1.0/clipSize, 
     
     //法线少采样一张 一般也够表达效果 因为 3种半透明区域 法线已经减弱了
         fixed4 nrm =0;
-       nrm+= lerp(tex2D(NormalAtlas, uvG),tex2D(NormalAtlas, uvR),(1-weightG-weightB));
+       nrm+= lerp(tex2D(NormalAtlas, uvG, dx,dy),tex2D(NormalAtlas, uvR, dx,dy),(1-weightG-weightB));
  
       mixedNormal = UnpackNormal( nrm);
   
