@@ -75,10 +75,10 @@ float2 initScale = (IN.tc_Control*500/33);//terrain Size/ tile scale
  float space = 1.0 / clipSize;
  float clipRepeatWid = (1.0 / clipCount - 2.0 *space);
  float2 initUVAlbedo = clipRepeatWid * frac(initScale) + space;
- float2 dx =  clamp(clipRepeatWid * ddx(initScale), -1.0/ clipCount, 1.0/ clipCount);
- float2 dy =  clamp(clipRepeatWid * ddy(initScale), -1.0/ clipCount, 1.0/ clipCount);
+ float2 dx =  clamp(clipRepeatWid * ddx(initScale), -1.0/ clipCount/2, 1.0/ clipCount/2);
+ float2 dy =  clamp(clipRepeatWid * ddy(initScale), -1.0/ clipCount/2, 1.0/ clipCount/2);
  int mipmap=(int)(0.5+ log2(max(sqrt(dot(dx, dx)), sqrt(dot(dy, dy)))*clipSize));
- space =( pow(2.0, mipmap)+0.1) / clipSize;
+ space =( pow(2.0, mipmap)-0.5) / clipSize;
  clipRepeatWid = (1.0 / clipCount - 2.0 *space);
  initUVAlbedo = clipRepeatWid * frac(initScale) + space;
  
