@@ -4,32 +4,35 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+ 
 using UnityEngine;
 
 public class FastTerrain : MonoBehaviour
 {
-    public Texture2D albedoAtlas;
-    public Texture2D normalAtlas;
+     public Texture2DArray albedoAtlas;
+    public Texture2DArray normalAtlas;
 
     //slplat 区分id和Weight 主要是因为 id不能插值 但weight需要插值 如果分辨率精度够大 point 采样够平滑 就不需要分2张
     public Texture2D splatID;
-    public Texture2D splatWeight;
+    public Texture2DArray splatWeight;
     public Shader terrainShader;
-    public TerrainData normalTerrainData;
+    public TerrainData normalTerrainData;//{ get { return GetComponent<Terrain>().terrainData; } }
     public TerrainData empytTerrainData;
-    int adgeAdd ;
+#if UNITY_EDITOR
     [ContextMenu("MakeAlbedoAtlas")]
     // Update is called once per frame
     void MakeAlbedoAtlas()
     {
+      
          int sqrCount = 4;
         int wid = normalTerrainData.splatPrototypes[0].texture.width;
         int hei =normalTerrainData.splatPrototypes[0].texture.height;
-        adgeAdd = 1;
 
-        albedoAtlas = new Texture2D(sqrCount * wid +  adgeAdd*sqrCount*2, sqrCount * hei + adgeAdd * sqrCount * 2, TextureFormat.RGBA32, true);
-        normalAtlas = new Texture2D(sqrCount * wid + adgeAdd * sqrCount * 2, sqrCount * hei + adgeAdd * sqrCount * 2, TextureFormat.RGBA32, true);
-        print(albedoAtlas.width);
+        int widNormal = normalTerrainData.splatPrototypes[0].normalMap.width;
+        int heiNormal = normalTerrainData.splatPrototypes[0].normalMap.height;
+        albedoAtlas = new Texture2DArray(wid, hei, sqrCount* sqrCount, normalTerrainData.splatPrototypes[0].texture.format, true,false);
+        normalAtlas = new Texture2DArray(widNormal, heiNormal, sqrCount* sqrCount, normalTerrainData.splatPrototypes[0].normalMap.format, true,true);
+         
         for (int i = 0; i < sqrCount; i++)
         {
             for (int j = 0; j < sqrCount; j++)
@@ -37,93 +40,23 @@ public class FastTerrain : MonoBehaviour
                 int index = i * sqrCount + j;
 
                 if (index >= normalTerrainData.splatPrototypes.Length) break;
-                copyToAltas(normalTerrainData.splatPrototypes[index].texture, albedoAtlas, i, j, wid, hei);
-                copyToAltas(normalTerrainData.splatPrototypes[index].normalMap, normalAtlas, i, j, wid, hei);
+                for (int k = 0; k < normalTerrainData.splatPrototypes[index].texture.mipmapCount; k++)
+                {
+                    Graphics.CopyTexture(normalTerrainData.splatPrototypes[index].texture, 0, k, albedoAtlas, index, k);
+ 
+                }
+                for (int k = 0; k < normalTerrainData.splatPrototypes[index].normalMap.mipmapCount; k++)
+                {
+                    Graphics.CopyTexture(normalTerrainData.splatPrototypes[index].normalMap, 0, k, normalAtlas, index, k);
+ 
+                }
+     
             }
         }
-
-        albedoAtlas.Apply();
-        normalAtlas.Apply();
-        File.WriteAllBytes(Application.dataPath+"/albedoAtlas.png",albedoAtlas.EncodeToPNG());
-        File.WriteAllBytes(Application.dataPath+"/normalAtlas.png",normalAtlas.EncodeToPNG());
-        DestroyImmediate(albedoAtlas);
-        DestroyImmediate(normalAtlas);
+ 
+  
     }
-    private void copyToAltas(Texture2D src, Texture2D texture, int i, int j, int wid, int hei)
-    {
-     
-        if (src == null) return;
-        //原始像素
-        texture.SetPixels(j * (wid + 2 * adgeAdd) + adgeAdd, i * (hei + 2 * adgeAdd) + adgeAdd, wid, hei, src.GetPixels());
-     
-        //加4条边
 
-        var lineColors = src.GetPixels(wid - 1, 0, 1, hei);
-        var fillColor = new Color[hei * adgeAdd];
-        for (int k = 0; k < hei * adgeAdd; k++)
-        {
-            fillColor[k] = lineColors[k % hei];
-        }
-        texture.SetPixels(j * (wid + 2 * adgeAdd), i * (hei + 2 * adgeAdd) + adgeAdd, adgeAdd, hei, fillColor);
-
-        lineColors = src.GetPixels(0, 0, 1, hei);
-        for (int k = 0; k < hei * adgeAdd; k++)
-        {
-            fillColor[k] = lineColors[k % hei];
-        }
-        texture.SetPixels(j * (wid + 2 * adgeAdd) + wid + adgeAdd, i * (hei + 2 * adgeAdd) + adgeAdd, adgeAdd, hei, fillColor);
-
-        fillColor = new Color[wid * adgeAdd];
-        lineColors = src.GetPixels(0, hei - 1, wid, 1);
-        for (int k = 0; k < wid * adgeAdd; k++)
-        {
-            fillColor[k] = lineColors[k % wid];
-        }
-
-        texture.SetPixels(j * (wid + 2 * adgeAdd) + adgeAdd, i * (hei + 2 * adgeAdd), wid, adgeAdd, fillColor);
-        lineColors = src.GetPixels(0, 0, wid, 1);
-        for (int k = 0; k < wid * adgeAdd; k++)
-        {
-            fillColor[k] = lineColors[k % wid];
-        }
-
-        texture.SetPixels(j * (wid + 2 * adgeAdd) + adgeAdd, i * (hei + 2 * adgeAdd) + hei + adgeAdd, wid, adgeAdd, fillColor);
-
-
-        //加4个角
-        var cornerColor = src.GetPixel(0, hei - 1);
-        fillColor = new Color[adgeAdd * adgeAdd];
-        for (int k = 0; k < fillColor.Length; k++)
-        {
-            fillColor[k] = cornerColor;
-        }
-        texture.SetPixels(j * (wid + 2 * adgeAdd), i * (hei + 2 * adgeAdd), adgeAdd, adgeAdd, fillColor);
-        cornerColor = src.GetPixel(0, 0);
-
-        for (int k = 0; k < fillColor.Length; k++)
-        {
-            fillColor[k] = cornerColor;
-        }
-        texture.SetPixels(j * (wid + 2 * adgeAdd), i * (hei + 2 * adgeAdd) + hei + adgeAdd, adgeAdd, adgeAdd, fillColor);
-
-        cornerColor = src.GetPixel(wid - 1, hei - 1);
-
-        for (int k = 0; k < fillColor.Length; k++)
-        {
-            fillColor[k] = cornerColor;
-        }
-        texture.SetPixels(j * (wid + 2 * adgeAdd) + adgeAdd + wid, i * (hei + 2 * adgeAdd), adgeAdd, adgeAdd, fillColor);
-
-
-        cornerColor = src.GetPixel(wid - 1, 0);
-
-        for (int k = 0; k < fillColor.Length; k++)
-        {
-            fillColor[k] = cornerColor;
-        }
-        texture.SetPixels(j * (wid + 2 * adgeAdd) + adgeAdd + wid, i * (hei + 2 * adgeAdd) + hei + adgeAdd, adgeAdd, adgeAdd, fillColor);
-
-    }
 
     struct SplatData
     {
@@ -207,13 +140,14 @@ public class FastTerrain : MonoBehaviour
         splatID.SetPixels(splatIDColors);
         splatID.Apply();
 
-        // 改用图片文件时可设置压缩为R8 代码生成有格式限制 空间有点浪费
-        splatWeight = new Texture2D(wid*2, hei*2,normalTerrainData.alphamapTextures[0].format, true, true);
+        
+        splatWeight = new Texture2DArray(wid, hei, normalTerrainData.alphamapTextures.Length, normalTerrainData.alphamapTextures[0].format, true, true);
         splatWeight.filterMode = FilterMode.Bilinear;
         for (int i = 0; i < normalTerrainData.alphamapTextures.Length; i++)
         {
-            splatWeight.SetPixels((i%2)*wid,(i/2)*hei,wid,hei,normalTerrainData.alphamapTextures[i].GetPixels());
-        }
+            splatWeight.SetPixels(normalTerrainData.alphamapTextures[i].GetPixels(), i);
+
+         }
 
         splatWeight.Apply();
     }
@@ -237,28 +171,24 @@ public class FastTerrain : MonoBehaviour
         return value / (8 * 2);
     }
 
-
+#endif
   
     [ContextMenu("UseFastMode")]
     void useFastMode()
     {
         Terrain t = GetComponent<Terrain>();
-        t.terrainData = empytTerrainData;
+      t.terrainData = empytTerrainData;
        
         t.materialType = Terrain.MaterialType.Custom;
-        if (t.materialTemplate == null)
-        {
+      
             t.materialTemplate = new Material(terrainShader);
-        }
-        else
-        {
-            t.materialTemplate.shader = terrainShader;
-        }
+     
 
         Shader.SetGlobalTexture("SpaltIDTex", splatID);
         Shader.SetGlobalTexture("SpaltWeightTex", splatWeight);
         Shader.SetGlobalTexture("AlbedoAtlas", albedoAtlas);
         Shader.SetGlobalTexture("NormalAtlas", normalAtlas);
+        
     }
 
     [ContextMenu("UseBuildinMode")]

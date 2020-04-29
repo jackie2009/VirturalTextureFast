@@ -19,10 +19,11 @@ sampler2D _Control;
 float4 _Control_ST;
 sampler2D _Splat0,_Splat1,_Splat2,_Splat3;
 uniform sampler2D SpaltIDTex;
-uniform sampler2D SpaltWeightTex;
-uniform  sampler2D AlbedoAtlas;
-uniform  sampler2D NormalAtlas;
- 
+  
+UNITY_DECLARE_TEX2DARRAY(AlbedoAtlas);
+UNITY_DECLARE_TEX2DARRAY(NormalAtlas);
+UNITY_DECLARE_TEX2DARRAY(SpaltWeightTex);
+
 
 #ifdef _TERRAIN_NORMAL_MAP
     sampler2D _Normal0, _Normal1, _Normal2, _Normal3;
@@ -35,10 +36,10 @@ void SplatmapVert(inout appdata_full v, out Input data)
     float4 pos = UnityObjectToClipPos(v.vertex);
     UNITY_TRANSFER_FOG(data, pos);
 
-#ifdef _TERRAIN_NORMAL_MAP
+
     v.tangent.xyz = cross(v.normal, float3(0,0,1));
     v.tangent.w = -1;
-#endif
+
 }
  float getChannelValue(float4 clr,int index ){
  
@@ -85,32 +86,38 @@ float2 initScale = (IN.tc_Control*500/33);//terrain Size/ tile scale
 float2 dxSplat = clamp(0.5*ddx(IN.tc_Control), -1.0 / clipSize / 2, 1.0 / clipSize / 2);
 float2 dySplat = clamp(0.5* ddy(IN.tc_Control), -1.0 / clipSize / 2, 1.0 / clipSize / 2);
 
- float2 uvR=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
- half3 colorR=tex2D(AlbedoAtlas, uvR,dx,dy);
+float3 uvR = float3(initScale,id);//
+half3 colorR = UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, uvR);
  
  //根据混合总和为1 把丢弃的部分算给 混合最多的 这样画面影响最小 而且 少采样一次又提升性能
-   
+  // 
+  //
+   id=(int)( splat_control.g*16+0.5);
+ float3 uvG= float3(initScale, id);//
+ half3 colorG = UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, uvG);
+
+   float weightG=  getChannelValue(UNITY_SAMPLE_TEX2DARRAY(SpaltWeightTex, float3(IN.tc_Control, id/4)),id%4);
   
-  id=(int)( splat_control.g*16+0.5);
-  float2 uvG=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
-   half3 colorG=tex2D(AlbedoAtlas, uvG,dx,dy);
-    float weightG=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5, dxSplat, dySplat),id%4);
-    
-     id=(int)( splat_control.b*16+0.5);
-  float2 uvB=initUVAlbedo+ float2(id%clipCount,id/clipCount)/clipCount;
-  half3 colorB=tex2D(AlbedoAtlas, uvB,dx,dy);
-  float weightB=  getChannelValue(tex2D(SpaltWeightTex, IN.tc_Control*0.5+float2((id/4)%2,id/8)*0.5, dxSplat, dySplat),id%4);
-   
-   mixedDiffuse.rgb= colorR*(1-weightG-weightB)+colorG*weightG +colorB*weightB; 
+      id=(int)( splat_control.b*16+0.5);
+	  float3 uvB = float3(initScale, id);//
+	  half3 colorB = UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, uvB);
+
+ 	  float weightB = getChannelValue(UNITY_SAMPLE_TEX2DARRAY(SpaltWeightTex, float3(IN.tc_Control, id/4)), id % 4);
+
+  // 
+   mixedDiffuse.rgb=  colorR*(1-weightG-weightB)+colorG*weightG +colorB*weightB; 
    mixedDiffuse.a=1;
-  
-    
+     
     
     //法线少采样一张 一般也够表达效果 因为 3种半透明区域 法线已经减弱了
-        fixed4 nrm =0;
-       nrm+= lerp(tex2D(NormalAtlas, uvG, dx,dy),tex2D(NormalAtlas, uvR, dx,dy),(1-weightG-weightB));
- 
-      mixedNormal = UnpackNormal( nrm);
+    
+        fixed4 nrm = 0.0f;
+        nrm += saturate(1-weightG)* UNITY_SAMPLE_TEX2DARRAY(NormalAtlas, uvR);
+        nrm += weightG * UNITY_SAMPLE_TEX2DARRAY(NormalAtlas, uvG);
+        
+        mixedNormal = UnpackNormal(nrm);
+  
+       
   
 }
 

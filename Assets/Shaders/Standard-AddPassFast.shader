@@ -47,7 +47,7 @@ Shader "Hidden/TerrainEngine/Splatmap/Standard-AddPassFast" {
 			fixed4 frag (v2f i) : SV_Target
 			{
 				 discard;
-				return 0;
+				return 1;
 			}
 			ENDCG
 		}

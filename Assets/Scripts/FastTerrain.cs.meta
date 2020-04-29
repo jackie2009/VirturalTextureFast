@@ -1,10 +1,17 @@
 fileFormatVersion: 2
 guid: 91e36493b67c74fac8ecd37b61441129
-timeCreated: 1587215241
+timeCreated: 1587950934
 licenseType: Free
 MonoImporter:
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - albedoAtlas: {instanceID: 0}
+  - normalAtlas: {instanceID: 0}
+  - splatID: {instanceID: 0}
+  - splatWeight: {instanceID: 0}
+  - terrainShader: {fileID: 4800000, guid: f82458e769d2b41d2b0e7d761258c144, type: 3}
+  - normalTerrainData: {instanceID: 0}
+  - empytTerrainData: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 
